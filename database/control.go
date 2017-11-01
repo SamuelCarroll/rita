@@ -3,6 +3,8 @@ package database
 import (
 	"errors"
 
+	"github.com/ocmdev/rita/datatypes/structure"
+	"github.com/ocmdev/rita/parser/parsetypes"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
@@ -144,4 +146,58 @@ func (d *DB) MapReduceCollection(sourceCollection string, job mgo.MapReduce) boo
 	}
 
 	return true
+}
+
+// GetSrcDst will get the highest source destination pair and return a slice of conn collections
+func (d *DB) GetSrcDst() []parsetypes.Conn {
+	session := d.Session.Copy()
+	defer session.Close()
+
+	src, dst := d.getHighUConn()
+
+	if src == "" || dst == "" {
+		d.resources.Log.Warning("Error getting source destination pair")
+		return nil
+	}
+
+	connName := d.resources.Config.T.Structure.ConnTable
+	coll := session.DB(d.selected).C(connName)
+
+	var srcDstConns []parsetypes.Conn
+	srcDstQuery := bson.M{"id_origin_h": src, "id_resp_h": dst}
+	err := coll.Find(srcDstQuery).All(&srcDstConns)
+
+	if err != nil {
+		d.resources.Log.Warning("Error with conn query")
+		return nil
+	}
+
+	return srcDstConns
+}
+
+func (d *DB) getHighUConn() (string, string) {
+	session := d.Session.Copy()
+	defer session.Close()
+
+	uconnName := d.resources.Config.T.Structure.UniqueConnTable
+	if !d.CollectionExists(uconnName) {
+		d.resources.Log.Warning("Couldn't get ", uconnName, " please make sure you've analyzed first")
+		return "", ""
+	}
+	localQuery := bson.M{"$or": []bson.M{bson.M{"local_src": true}, bson.M{"local_dst": true}}}
+
+	uconn := session.DB(d.selected).C(uconnName).Find(localQuery)
+
+	var high structure.UniqueConnection
+	err := uconn.Sort("-connection_count").One(&high)
+
+	if err != nil {
+		d.resources.Log.Warning("Couldn't get src dst from uconn")
+		return "", ""
+	}
+
+	src := high.Src
+	dst := high.Dst
+
+	return src, dst
 }
