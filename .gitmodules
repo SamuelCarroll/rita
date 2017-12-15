@@ -1,3 +1,33 @@
 [submodule "vendor/github.com/ocmdev/mgorus"]
 	path = vendor/github.com/ocmdev/mgorus
 	url = https://github.com/ocmdev/mgorus
+[submodule "vendor/github.com/ocmdev/mgosec"]
+	path = vendor/github.com/ocmdev/mgosec
+	url = https://github.com/ocmdev/mgosec
+[submodule "vendor/github.com/ocmdev/rita"]
+	path = vendor/github.com/ocmdev/rita
+	url = https://github.com/ocmdev/rita
+[submodule "vendor/github.com/ocmdev/rita-bl"]
+	path = vendor/github.com/ocmdev/rita-bl
+	url = https://github.com/ocmdev/rita-bl
+[submodule "vendor/github.com/olekukonko/tablewriter"]
+	path = vendor/github.com/olekukonko/tablewriter
+	url = https://github.com/olekukonko/tablewriter
+[submodule "vendor/github.com/rifflock/lfshook"]
+	path = vendor/github.com/rifflock/lfshook
+	url = https://github.com/rifflock/lfshook
+[submodule "vendor/github.com/sirupsen/logrus"]
+	path = vendor/github.com/sirupsen/logrus
+	url = https://github.com/sirupsen/logrus
+[submodule "vendor/github.com/skratchdot/open-golang"]
+	path = vendor/github.com/skratchdot/open-golang
+	url = https://github.com/skratchdot/open-golang
+[submodule "vendor/github.com/urfave/cli"]
+	path = vendor/github.com/urfave/cli
+	url = https://github.com/urfave/cli
+[submodule "vendor/gopkg.in/mgo.v2"]
+	path = vendor/gopkg.in/mgo.v2
+	url = git+ssh://gopkg.in/mgo.v2
+[submodule "vendor/gopkg.in/yaml.v2"]
+	path = vendor/gopkg.in/yaml.v2
+	url = https://gopkg.in/yaml.v2
