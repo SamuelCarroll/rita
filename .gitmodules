@@ -1,0 +1,3 @@
+[submodule "vendor/github.com/ocmdev/mgorus"]
+	path = vendor/github.com/ocmdev/mgorus
+	url = https://github.com/ocmdev/mgorus
