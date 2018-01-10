@@ -2,8 +2,11 @@ package database
 
 import (
 	"errors"
+	"fmt"
+	"strings"
 
-	"github.com/ocmdev/rita/datatypes/structure"
+	"github.com/ocmdev/rita/datatypes/beacon"
+	"github.com/ocmdev/rita/datatypes/scanning"
 	"github.com/ocmdev/rita/parser/parsetypes"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/mgo.v2"
@@ -148,56 +151,99 @@ func (d *DB) MapReduceCollection(sourceCollection string, job mgo.MapReduce) boo
 	return true
 }
 
-// GetSrcDst will get the highest source destination pair and return a slice of conn collections
-func (d *DB) GetSrcDst() []parsetypes.Conn {
+//GetAnomalies returns the beacon and scan tables
+func (d *DB) GetAnomalies() ([]beacon.BeaconAnalysisView, []scanning.Scan) {
 	session := d.Session.Copy()
 	defer session.Close()
 
-	src, dst := d.getHighUConn()
+	beaconName := d.resources.Config.T.Beacon.BeaconTable
+	scanName := d.resources.Config.T.Scanning.ScanTable
 
-	if src == "" || dst == "" {
-		d.resources.Log.Warning("Error getting source destination pair")
-		return nil
+	var beacons []beacon.BeaconAnalysisView
+	var scans []scanning.Scan
+	var retBeacons []beacon.BeaconAnalysisView
+	var retScans []scanning.Scan
+
+	coll := session.DB(d.selected).C(beaconName)
+	err := coll.Find(nil).All(&beacons)
+	if err != nil {
+		d.resources.Log.Warning("Error with Beacon query")
+		return nil, nil
 	}
+	for _, beacon := range beacons {
+		if !localTraffic(beacon.Src, beacon.Dst) {
+			retBeacons = append(retBeacons, beacon)
+		}
+	}
+
+	coll = session.DB(d.selected).C(scanName)
+	err = coll.Find(nil).All(&scans)
+	if err != nil {
+		d.resources.Log.Warning("Error with Scan query")
+		return retBeacons, nil
+	}
+	for _, scan := range scans {
+		if !localTraffic(scan.Src, scan.Dst) {
+			retScans = append(retScans, scan)
+		}
+	}
+
+	return retBeacons, retScans
+}
+
+func localTraffic(addr1, addr2 string) bool {
+	addr1Split := strings.LastIndex(addr1, ".")
+	addr2Split := strings.LastIndex(addr2, ".")
+
+	if addr1Split == -1 || addr2Split == -1 {
+		return false
+	}
+
+	addr1 = addr1[:addr1Split]
+	addr2 = addr2[:addr2Split]
+
+	if strings.Compare(addr1, addr2) == 0 {
+		return true
+	}
+
+	return false
+}
+
+// GetSrcDst will get the highest source destination pair and return a slice of conn collections
+func (d *DB) GetSrcDst(srcs []string, dsts []string) ([]parsetypes.Conn, []parsetypes.Conn) {
+	session := d.Session.Copy()
+	defer session.Close()
 
 	connName := d.resources.Config.T.Structure.ConnTable
 	coll := session.DB(d.selected).C(connName)
 
-	var srcDstConns []parsetypes.Conn
-	srcDstQuery := bson.M{"id_origin_h": src, "id_resp_h": dst}
-	err := coll.Find(srcDstQuery).All(&srcDstConns)
+	var normConns []parsetypes.Conn
+	var anomConns []parsetypes.Conn
 
+	srcsNotIn := bson.M{"$nin": srcs}
+	dstsNotIn := bson.M{"$nin": dsts}
+	srcsIn := bson.M{"$in": srcs}
+	dstsIn := bson.M{"$in": dsts}
+
+	normQuery := bson.M{"$and": []bson.M{bson.M{"id_origin_h": srcsNotIn}, bson.M{"id_resp_h": dstsNotIn}}}
+	anomQuery := bson.M{"$and": []bson.M{bson.M{"id_origin_h": srcsIn}, bson.M{"id_resp_h": dstsIn}}}
+
+	err := coll.Find(anomQuery).All(&anomConns)
 	if err != nil {
-		d.resources.Log.Warning("Error with conn query")
-		return nil
+		d.resources.Log.Warning("Error with conn anomalous query")
+		return nil, nil
 	}
+	fmt.Println("Got the anamalies")
 
-	return srcDstConns
-}
+	//Since we can work with big datasets we want to limit the results we get back
+	totLen := 10 * len(anomConns)
 
-func (d *DB) getHighUConn() (string, string) {
-	session := d.Session.Copy()
-	defer session.Close()
-
-	uconnName := d.resources.Config.T.Structure.UniqueConnTable
-	if !d.CollectionExists(uconnName) {
-		d.resources.Log.Warning("Couldn't get ", uconnName, " please make sure you've analyzed first")
-		return "", ""
-	}
-	localQuery := bson.M{"$or": []bson.M{bson.M{"local_src": true}, bson.M{"local_dst": true}}}
-
-	uconn := session.DB(d.selected).C(uconnName).Find(localQuery)
-
-	var high structure.UniqueConnection
-	err := uconn.Sort("-connection_count").One(&high)
-
+	err = coll.Find(normQuery).Limit(totLen).All(&normConns)
 	if err != nil {
-		d.resources.Log.Warning("Couldn't get src dst from uconn")
-		return "", ""
+		d.resources.Log.Warning("Error with conn normal query")
+		return nil, nil
 	}
+	fmt.Println("Got the normies")
 
-	src := high.Src
-	dst := high.Dst
-
-	return src, dst
+	return normConns, anomConns
 }
