@@ -117,10 +117,31 @@ func loadStaticConfig(cfgPath string) (*StaticCfg, error) {
 
 	// set the socket time out in hours
 	config.MongoDB.SocketTimeout *= time.Hour
+	config.Bro.DirectoryMap, err = getBroLogDir(config.Bro.LogPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to get Bro Log Folder Details: %s\n", err.Error())
+		return config, err
+	}
 
 	// grab the version constants set by the build process
 	config.Version = Version
 	config.ExactVersion = ExactVersion
 
 	return config, nil
+}
+
+func getBroLogDir(broLogPath string) (map[string]string, error) {
+	dirStruct := make(map[string]string)
+	elements, err := ioutil.ReadDir(broLogPath)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, elem := range elements {
+		if elem.IsDir() {
+			dirStruct[elem.Name()] = elem.Name()
+		}
+	}
+
+	return dirStruct, nil
 }
