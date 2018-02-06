@@ -179,7 +179,7 @@ __setOS() {
 	_OS="$(lsb_release -is)"
 	if [ "$_OS" != "Ubuntu" -a "$_OS" != "CentOS" ]; then
 		echo "Unsupported operating system"
-		_err
+		__err
 	fi
 }
 
