@@ -64,8 +64,7 @@ func (fs *FSImporter) Run(datastore Datastore) {
 
 	indexedFiles = removeOldFilesFromIndex(indexedFiles, fs.res.MetaDB, fs.res.Log)
 
-	parseFiles(indexedFiles, fs.parseThreads,
-		fs.res.Config.S.Bro.UseDates, datastore, fs.res.Log)
+	parseFiles(indexedFiles, fs.parseThreads, datastore, fs.res.Log)
 
 	datastore.Flush()
 	updateFilesIndex(indexedFiles, fs.res.MetaDB, fs.res.Log)
@@ -156,7 +155,7 @@ func indexFiles(files []string, indexingThreads int,
 //errors and parses the bro files line by line into the database.
 //NOTE: side effect: this sets the dates field on the indexedFiles
 func parseFiles(indexedFiles []*fpt.IndexedFile, parsingThreads int,
-	useDates bool, datastore Datastore, logger *log.Logger) {
+	datastore Datastore, logger *log.Logger) {
 	//set up parallel parsing
 	n := len(indexedFiles)
 	parsingWG := new(sync.WaitGroup)
@@ -215,9 +214,6 @@ func parseFiles(indexedFiles []*fpt.IndexedFile, parsingThreads int,
 						//figure out what database this line is heading for
 						targetCollection := indexedFiles[j].TargetCollection
 						targetDB := indexedFiles[j].TargetDatabase
-						if useDates {
-							targetDB += "-" + date
-						}
 
 						datastore.Store(&ImportedData{
 							BroData:          data,

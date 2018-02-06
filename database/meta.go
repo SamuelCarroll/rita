@@ -44,7 +44,6 @@ func (m *MetaDBHandle) AddNewDB(name string) error {
 		DBMetaInfo{
 			Name:          name,
 			Analyzed:      false,
-			UsingDates:    m.res.Config.S.Bro.UseDates,
 			ImportVersion: m.res.Config.S.Version,
 		},
 	)
@@ -89,20 +88,9 @@ func (m *MetaDBHandle) DeleteDB(name string) error {
 	if err != nil {
 		return err
 	}
-	if db.UsingDates {
-		date := name[len(name)-10:]
-		name = name[:len(name)-11]
-		_, err = ssn.DB(m.DB).C("files").RemoveAll(
-			bson.M{"database": name, "dates": date},
-		)
-		if err != nil {
-			return err
-		}
-	} else {
-		_, err = ssn.DB(m.DB).C("files").RemoveAll(bson.M{"database": name})
-		if err != nil {
-			return err
-		}
+	_, err = ssn.DB(m.DB).C("files").RemoveAll(bson.M{"database": name})
+	if err != nil {
+		return err
 	}
 
 	m.logDebug("DeleteDB", "exiting")
