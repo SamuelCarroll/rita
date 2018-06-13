@@ -7,11 +7,13 @@ import (
 
 //Version is filled at compile time with the git version of RITA
 //Version is filled by "git describe --abbrev=0 --tags"
-var Version = "undefined"
+//var Version = "undefined"
+var Version = "0.0.0"
 
 //ExactVersion is filled at compile time with the git version of RITA
 //ExactVersion is filled by "git describe --always --long --dirty --tags"
-var ExactVersion = "undefined"
+//var ExactVersion = "undefined"
+var ExactVersion = "0.0.0"
 
 type (
 	//Config holds the configuration for the running system

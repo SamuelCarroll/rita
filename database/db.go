@@ -2,9 +2,14 @@ package database
 
 import (
 	"errors"
+	"fmt"
+	"strings"
 
 	"github.com/activecm/mgosec"
 	"github.com/activecm/rita/config"
+	"github.com/ocmdev/rita/datatypes/beacon"
+	"github.com/ocmdev/rita/datatypes/scanning"
+	"github.com/ocmdev/rita/parser/parsetypes"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
@@ -171,4 +176,97 @@ func (d *DB) MapReduceCollection(sourceCollection string, job mgo.MapReduce) boo
 	}
 
 	return true
+}
+
+//GetAnomalies returns the beacon and scan tables
+func (d *DB) GetAnomalies(beaconName, scanName string) ([]beacon.BeaconAnalysisView, []scanning.Scan) {
+	session := d.Session.Copy()
+	defer session.Close()
+
+	var beacons []beacon.BeaconAnalysisView
+	var scans []scanning.Scan
+	var retBeacons []beacon.BeaconAnalysisView
+	var retScans []scanning.Scan
+
+	coll := session.DB(d.selected).C(beaconName)
+	err := coll.Find(nil).All(&beacons)
+	if err != nil {
+		d.log.Warning("Error with Beacon query")
+		return nil, nil
+	}
+	for _, beacon := range beacons {
+		if !localTraffic(beacon.Src, beacon.Dst) {
+			retBeacons = append(retBeacons, beacon)
+		}
+	}
+
+	coll = session.DB(d.selected).C(scanName)
+	err = coll.Find(nil).All(&scans)
+	if err != nil {
+		d.log.Warning("Error with Scan query")
+		return retBeacons, nil
+	}
+	for _, scan := range scans {
+		if !localTraffic(scan.Src, scan.Dst) {
+			retScans = append(retScans, scan)
+		}
+	}
+
+	return retBeacons, retScans
+}
+
+func localTraffic(addr1, addr2 string) bool {
+	addr1Split := strings.LastIndex(addr1, ".")
+	addr2Split := strings.LastIndex(addr2, ".")
+
+	if addr1Split == -1 || addr2Split == -1 {
+		return false
+	}
+
+	addr1 = addr1[:addr1Split]
+	addr2 = addr2[:addr2Split]
+
+	if strings.Compare(addr1, addr2) == 0 {
+		return true
+	}
+
+	return false
+}
+
+// GetSrcDst will get the highest source destination pair and return a slice of conn collections
+func (d *DB) GetSrcDst(srcs, dsts []string, connName string) ([]parsetypes.Conn, []parsetypes.Conn) {
+	session := d.Session.Copy()
+	defer session.Close()
+
+	coll := session.DB(d.selected).C(connName)
+
+	var normConns []parsetypes.Conn
+	var anomConns []parsetypes.Conn
+
+	srcsNotIn := bson.M{"$nin": srcs}
+	dstsNotIn := bson.M{"$nin": dsts}
+	srcsIn := bson.M{"$in": srcs}
+	dstsIn := bson.M{"$in": dsts}
+
+	normQuery := bson.M{"$and": []bson.M{bson.M{"id_origin_h": srcsNotIn}, bson.M{"id_resp_h": dstsNotIn}}}
+	anomQuery := bson.M{"$and": []bson.M{bson.M{"id_origin_h": srcsIn}, bson.M{"id_resp_h": dstsIn}}}
+
+	err := coll.Find(anomQuery).All(&anomConns)
+	if err != nil {
+		d.log.Warning("Error with conn anomalous query")
+		return nil, nil
+	}
+	fmt.Println("Got the anamalies")
+
+	//Since we can work with big datasets we want to limit the results we get back
+	totLen := 10 * len(anomConns)
+
+	err = coll.Find(normQuery).Limit(totLen).All(&normConns)
+	if err != nil {
+		d.log.Warning("Error with conn normal query")
+		return nil, nil
+	}
+	fmt.Println("Got the normies")
+
+	return normConns, anomConns
 }
